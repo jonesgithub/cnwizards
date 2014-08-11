@@ -153,6 +153,8 @@ type
     {* 根据专家类名字符串返回专家实例，如果找不到专家，返回为 nil}
     function IndexOf(Wizard: TCnBaseWizard): Integer;
     {* 根据专家实例查找其在专家列表中的索引号}
+    procedure DispatchDebugComand(Cmd: string; Results: TStrings);
+    {* 分发处理 Debug 输出命令并将结果放置入 Results 中，供内部调试用}
     property Menu: TMenuItem read FMenu;
     {* 插入到 IDE 主菜单中的菜单项}
     property WizardCount: Integer read GetWizardCount;
@@ -1125,6 +1127,59 @@ procedure TCnWizardMgr.SetWizardCanCreate(WizardClassName: string;
   const Value: Boolean);
 begin
   WizOptions.WriteBool(SCnCreateSection, WizardClassName, Value);
+end;
+
+// 分发处理 Debug 输出命令并将结果放置入 Results 中，供内部调试用
+procedure TCnWizardMgr.DispatchDebugComand(Cmd: string; Results: TStrings);
+{$IFDEF DEBUG}
+var
+  LocalCmd, ID: string;
+  Cmds: TStrings;
+  I: Integer;
+  Wizard: TCnBaseWizard;
+  Matched: Boolean;
+{$ENDIF}
+begin
+  if (Cmd = '') or (Results = nil) then
+    Exit;
+  Results.Clear;
+
+{$IFDEF DEBUG}
+  Cmds := TStringList.Create;
+  try
+    ExtractStrings([' '], [], PChar(Cmd), Cmds);
+    if Cmds.Count = 0 then
+      Exit;
+
+    LocalCmd := Cmds[0];
+    Matched := False;
+    Wizard := nil;
+    for I := 0 to GetWizardCount - 1 do
+    begin
+      Wizard := GetWizards(I);
+      ID := Wizard.GetIDStr;
+      if Pos(LocalCmd, ID) > 0 then
+      begin
+        Matched := True;
+        Break;
+      end;
+    end;
+
+    if Matched and (Wizard <> nil) then
+    begin
+      Cmds.Delete(0);
+      Wizard.DebugComand(Cmds, Results);
+      Exit;
+    end;
+
+    // No Wizard can process this debug command, do other stuff
+    Results.Add('Unknown Debug Command ' + Cmd);
+  finally
+    Cmds.Free;
+  end;
+{$ELSE}
+  Results.Add('CnPack IDE Wizards Debug Command Disabled.');
+{$ENDIF}
 end;
 
 //------------------------------------------------------------------------------
